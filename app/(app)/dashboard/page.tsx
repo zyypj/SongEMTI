@@ -27,6 +27,103 @@ function normalizeYouTube(items: any[]): Track[] {
     .filter((t) => !!t.videoId);
 }
 
+/** Limpa ruídos comuns de títulos do YouTube para buscar no Songsterr */
+function cleanForSongsterr(q: string): string {
+  let s = q.trim();
+
+  // remove partes entre parênteses/chaves/colchetes
+  s = s.replace(/\([^)]*\)/g, " ").replace(/\[[^\]]*\]/g, " ").replace(/\{[^}]*\}/g, " ");
+
+  // normaliza separadores e espaços
+  s = s.replace(/[-–—]+/g, "-").replace(/\s+/g, " ").trim();
+
+  // termos comuns que poluem
+  const noise = [
+    "official video", "official audio", "official", "video", "audio",
+    "lyrics", "lyric video", "visualizer", "hd", "4k", "remastered",
+    "live", "cover", "guitar cover", "drum cover", "bass cover",
+    "full album", "topic"
+  ];
+  const lower = s.toLowerCase();
+  noise.forEach(term => {
+    const re = new RegExp(`\\b${term}\\b`, "gi");
+    s = s.replace(re, " ");
+  });
+
+  // remove " - topic" (muito comum)
+  s = s.replace(/\s-\s*topic\b/i, " ");
+
+  // espaços extras
+  s = s.replace(/\s+/g, " ").trim();
+
+  // tira hífen nas pontas
+  s = s.replace(/^-\s*/, "").replace(/\s*-\s*$/, "");
+
+  return s;
+}
+
+/** Gera variações de consulta como um usuário faria */
+function buildSongsterrQueries(raw: string): string[] {
+  const base = cleanForSongsterr(raw);
+
+  // se tiver "Artista - Música"
+  const dashMatch = base.split(/\s-\s/);
+  const variants = new Set<string>();
+
+  // 1) original limpo
+  if (base) variants.add(base);
+
+  // 2) se houver artista - título, gera variações
+  if (dashMatch.length >= 2) {
+    const artist = dashMatch[0].trim();
+    const title = dashMatch.slice(1).join(" - ").trim();
+
+    if (artist && title) {
+      variants.add(`${artist} - ${title}`);     // padrão humano
+      variants.add(`${artist} ${title}`);       // sem hífen
+      variants.add(title);                      // só título
+      variants.add(artist);                     // só artista
+    }
+  } else {
+    // sem hífen, tenta separar por " - " que viria de outra limpeza
+    variants.add(base);
+  }
+
+  // 3) heurística extra: se tiver " - " ainda, divide na primeira ocorrência
+  const firstDash = base.indexOf(" - ");
+  if (firstDash > -1) {
+    const a = base.slice(0, firstDash).trim();
+    const t = base.slice(firstDash + 3).trim();
+    if (a && t) {
+      variants.add(`${a} - ${t}`);
+      variants.add(`${a} ${t}`);
+      variants.add(t);
+      variants.add(a);
+    }
+  }
+
+  // Mantém ordem previsível
+  return Array.from(variants).filter(Boolean).slice(0, 6);
+}
+
+/** Tenta buscar no Songsterr com variações até obter algum resultado */
+async function searchSongsterrUserLike(query: string): Promise<TabItem[]> {
+  const tries = buildSongsterrQueries(query);
+
+  for (const q of tries) {
+    try {
+      const r = await fetch(`/api/songsterr/search?q=${encodeURIComponent(q)}`);
+      if (!r.ok) continue;
+      const j = await r.json();
+      const items = (j?.items || []) as TabItem[];
+      if (items.length) return items;
+    } catch {
+      // tenta a próxima
+    }
+  }
+  return [];
+}
+
 export default function Dashboard() {
   const { /* setQueue, play */ } = usePlayer();
   const [q, setQ] = useState("");
@@ -43,6 +140,7 @@ export default function Dashboard() {
     if (!qq) return;
     setQ(qq);
 
+    // YouTube
     try {
       const r = await fetch(`/api/youtube/search?q=${encodeURIComponent(qq)}`);
       const data = await r.json();
@@ -51,10 +149,10 @@ export default function Dashboard() {
       setYtItems([]);
     }
 
+    // Songsterr (modo usuário: tenta múltiplas variantes)
     try {
-      const r2 = await fetch(`/api/songsterr/search?q=${encodeURIComponent(qq)}`);
-      const j2 = await r2.json();
-      setTabItems((j2?.items || []) as TabItem[]);
+      const items = await searchSongsterrUserLike(qq);
+      setTabItems(items);
     } catch {
       setTabItems([]);
     }
