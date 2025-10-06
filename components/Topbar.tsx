@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import UserMenu from "./UserMenu";
+import AvatarMenu from "./AvatarMenu";
 
 export default function Topbar({ onSearch }:{ onSearch:(q:string)=>void }) {
   const [q, setQ] = useState("");
@@ -13,7 +13,7 @@ export default function Topbar({ onSearch }:{ onSearch:(q:string)=>void }) {
         onKeyDown={(e)=>{ if(e.key==="Enter") onSearch(q); }}
       />
       <button onClick={()=>onSearch(q)} className="rounded bg-emerald-500 px-4 py-2 hover:bg-emerald-400">Buscar</button>
-      <UserMenu />
+      <AvatarMenu />
     </div>
   );
 }
