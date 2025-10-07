@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
-import { authOptions } from "../../auth/[...nextauth]/route";
+import { authOptions } from "@/src/lib/auth/options";
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions as any);
+  const session = (await getServerSession(authOptions)) as import("next-auth").Session | null;
   if (!session?.user?.email) return new Response("unauth", { status: 401 });
   const user = await prisma.user.findUnique({ where: { email: session.user.email }});
   const { playlistId, track } = await req.json();

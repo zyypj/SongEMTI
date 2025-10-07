@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getServerSession, type Session } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/src/lib/auth/options";
 import bcrypt from "bcrypt";
 
 export async function GET() {
