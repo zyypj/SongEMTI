@@ -27,69 +27,44 @@ function normalizeYouTube(items: any[]): Track[] {
     .filter((t) => !!t.videoId);
 }
 
-/** Limpa ruídos comuns de títulos do YouTube para buscar no Songsterr */
 function cleanForSongsterr(q: string): string {
   let s = q.trim();
-
-  // remove partes entre parênteses/chaves/colchetes
   s = s.replace(/\([^)]*\)/g, " ").replace(/\[[^\]]*\]/g, " ").replace(/\{[^}]*\}/g, " ");
-
-  // normaliza separadores e espaços
   s = s.replace(/[-–—]+/g, "-").replace(/\s+/g, " ").trim();
 
-  // termos comuns que poluem
   const noise = [
-    "official video", "official audio", "official", "video", "audio",
-    "lyrics", "lyric video", "visualizer", "hd", "4k", "remastered",
-    "live", "cover", "guitar cover", "drum cover", "bass cover",
-    "full album", "topic"
+    "official video","official audio","official","video","audio",
+    "lyrics","lyric video","visualizer","hd","4k","remastered",
+    "live","cover","guitar cover","drum cover","bass cover",
+    "full album","topic"
   ];
-  const lower = s.toLowerCase();
-  noise.forEach(term => {
-    const re = new RegExp(`\\b${term}\\b`, "gi");
-    s = s.replace(re, " ");
-  });
+  noise.forEach(term => { s = s.replace(new RegExp(`\\b${term}\\b`,"gi"), " "); });
 
-  // remove " - topic" (muito comum)
   s = s.replace(/\s-\s*topic\b/i, " ");
-
-  // espaços extras
   s = s.replace(/\s+/g, " ").trim();
-
-  // tira hífen nas pontas
   s = s.replace(/^-\s*/, "").replace(/\s*-\s*$/, "");
-
   return s;
 }
 
-/** Gera variações de consulta como um usuário faria */
 function buildSongsterrQueries(raw: string): string[] {
   const base = cleanForSongsterr(raw);
-
-  // se tiver "Artista - Música"
   const dashMatch = base.split(/\s-\s/);
   const variants = new Set<string>();
-
-  // 1) original limpo
   if (base) variants.add(base);
 
-  // 2) se houver artista - título, gera variações
   if (dashMatch.length >= 2) {
     const artist = dashMatch[0].trim();
     const title = dashMatch.slice(1).join(" - ").trim();
-
     if (artist && title) {
-      variants.add(`${artist} - ${title}`);     // padrão humano
-      variants.add(`${artist} ${title}`);       // sem hífen
-      variants.add(title);                      // só título
-      variants.add(artist);                     // só artista
+      variants.add(`${artist} - ${title}`);
+      variants.add(`${artist} ${title}`);
+      variants.add(title);
+      variants.add(artist);
     }
   } else {
-    // sem hífen, tenta separar por " - " que viria de outra limpeza
     variants.add(base);
   }
 
-  // 3) heurística extra: se tiver " - " ainda, divide na primeira ocorrência
   const firstDash = base.indexOf(" - ");
   if (firstDash > -1) {
     const a = base.slice(0, firstDash).trim();
@@ -102,14 +77,11 @@ function buildSongsterrQueries(raw: string): string[] {
     }
   }
 
-  // Mantém ordem previsível
   return Array.from(variants).filter(Boolean).slice(0, 6);
 }
 
-/** Tenta buscar no Songsterr com variações até obter algum resultado */
 async function searchSongsterrUserLike(query: string): Promise<TabItem[]> {
   const tries = buildSongsterrQueries(query);
-
   for (const q of tries) {
     try {
       const r = await fetch(`/api/songsterr/search?q=${encodeURIComponent(q)}`);
@@ -117,9 +89,7 @@ async function searchSongsterrUserLike(query: string): Promise<TabItem[]> {
       const j = await r.json();
       const items = (j?.items || []) as TabItem[];
       if (items.length) return items;
-    } catch {
-      // tenta a próxima
-    }
+    } catch {}
   }
   return [];
 }
@@ -149,7 +119,7 @@ export default function Dashboard() {
       setYtItems([]);
     }
 
-    // Songsterr (modo usuário: tenta múltiplas variantes)
+    // Songsterr (modo usuário)
     try {
       const items = await searchSongsterrUserLike(qq);
       setTabItems(items);
@@ -158,9 +128,7 @@ export default function Dashboard() {
     }
   };
 
-  useEffect(() => {
-    search("Metallica - Topic");
-  }, []);
+  useEffect(() => { search("FHOP"); }, []);
 
   const openPanelWithQuery = (seed: string) => {
     setPanelSeedQuery(seed);
@@ -180,7 +148,7 @@ export default function Dashboard() {
           >
             YouTube
           </button>
-          <button
+        <button
             className={`px-4 py-1.5 text-sm transition ${tab === "tabs" ? "bg-emerald-600" : "hover:bg-white/10"}`}
             onClick={() => setTab("tabs")}
           >
@@ -242,7 +210,7 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Drawer do Songsterr (abre pelo botão ou por um TabCard) */}
+      {/* Drawer do Songsterr */}
       <SongsterrPanel
         open={panelOpen}
         onClose={() => setPanelOpen(false)}

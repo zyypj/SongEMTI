@@ -1,7 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  images: {
-    remotePatterns: [{ protocol: "https", hostname: "**.ytimg.com" }]
-  }
+  distDir: ".next-build",
 };
 export default nextConfig;
